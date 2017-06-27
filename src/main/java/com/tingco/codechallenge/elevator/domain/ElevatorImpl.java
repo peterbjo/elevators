@@ -13,6 +13,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 /**
+ * Simple elevator algorithm
+ * If a elevator is going up, it continues to do so as long there are requests above the elevator and vice verse.
+ * If the elevator does not receive any more requests it doesn't move.
+ * When a request comes for an elevator on a specific floor, the elevator with the estimated shortest time to reach the
+ * floor is chosen.
+ *
  * @author Peter Björklund <mailto:peter.bjorklund@joors.com>
  * @since 1.0.0
  */
@@ -64,6 +70,7 @@ public class ElevatorImpl implements Elevator, Runnable {
                 .add("nrOfFloors", nrOfFloors)
                 .add("speedBetweenFloorsMs", speedBetweenFloorsMs)
                 .add("avgWaitingTimePerStopMs", avgWaitingTimePerStopMs)
+                .add("isRunning", isRunning)
                 .toString();
     }
 
@@ -164,13 +171,88 @@ public class ElevatorImpl implements Elevator, Runnable {
                 this.direction = Direction.NONE;
             }
 
+            List<ElevatorListener> toRemove = new ArrayList<>();
             for (ElevatorListener listener : listeners) {
-                listener.onStopEvent(new StopEvent(currentFloor, this));
+                if(listener.onStopEvent(new StopEvent(currentFloor, this))){
+                    toRemove.add(listener);
+                }
             }
+            listeners.removeAll(toRemove);
         }
 
-        LOGGER.info(String.format("Elevator=%s, is on floor=%d, direction=%s", id, currentFloor, direction));
+        LOGGER.info(String.format("Elevator=%s, is on floor=%d with direction=%s", id, currentFloor, direction));
         return currentFloor;
+    }
+
+    @Override
+    public int currentFloor() {
+        return currentFloor;
+    }
+
+    @Override
+    public void addElevatorListener(ElevatorListener listener) {
+        listeners.add(listener);
+    }
+
+    @Override
+    public void removeElevatorListener(ElevatorListener listener) {
+        listeners.remove(listener);
+    }
+
+    @Override
+    public synchronized void leave() {
+        elevatorStops[currentFloor] = elevatorStops[currentFloor] - 1;
+        nrOfPassengers--;
+    }
+
+    @Override
+    public synchronized void enter(int toFloor) {
+        elevatorStops[currentFloor] = elevatorStops[currentFloor] - 1;
+        elevatorStops[toFloor] = elevatorStops[toFloor] + 1;
+        nrOfPassengers++;
+    }
+
+    @Override
+    public int getNrOfPassengers() {
+        return nrOfPassengers;
+    }
+
+    @Override
+    public boolean isBusy() {
+        return isRunning;
+    }
+
+
+    @Override
+    public void start() {
+        this.isRunning = true;
+    }
+
+    @Override
+    public void stop() {
+        this.isRunning = false;
+    }
+
+    @Override
+    public boolean isRunning() {
+        return isRunning;
+    }
+
+    @Override
+    public void run() {
+        try {
+            while (isRunning) {
+
+                int addressedFloor = getAddressedFloor();
+                int nextFloor = moveToNextFloor();
+                TimeUnit.MILLISECONDS.sleep(speedBetweenFloorsMs);
+                if (nextFloor == addressedFloor) {
+                    TimeUnit.MILLISECONDS.sleep(avgWaitingTimePerStopMs);
+                }
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     private boolean isBelow(int floor) {
@@ -249,7 +331,7 @@ public class ElevatorImpl implements Elevator, Runnable {
 
         long totalTime = 0;
 
-        if (elevatorStops[toFloor] == 0) {
+        if (stops[toFloor] == 0) {
             totalTime = avgWaitingTimePerStopMs;
         }
 
@@ -298,75 +380,5 @@ public class ElevatorImpl implements Elevator, Runnable {
             }
         }
         return lastStop;
-    }
-
-    @Override
-    public int currentFloor() {
-        return currentFloor;
-    }
-
-    @Override
-    public synchronized void addElevatorListener(ElevatorListener listener) {
-        listeners.add(listener);
-    }
-
-    @Override
-    public synchronized void removeElevatorListener(ElevatorListener listener) {
-        listeners.remove(listener);
-    }
-
-    @Override
-    public synchronized void leave() {
-        elevatorStops[currentFloor] = elevatorStops[currentFloor] - 1;
-        nrOfPassengers--;
-    }
-
-    @Override
-    public synchronized void enter(int toFloor) {
-        elevatorStops[currentFloor] = elevatorStops[currentFloor] - 1;
-        elevatorStops[toFloor] = elevatorStops[toFloor] + 1;
-        nrOfPassengers++;
-    }
-
-    @Override
-    public int getNrOfPassengers() {
-        return nrOfPassengers;
-    }
-
-    @Override
-    public boolean isBusy() {
-        return isRunning();
-    }
-
-
-    @Override
-    public void start() {
-        this.isRunning = true;
-    }
-
-    @Override
-    public void stop() {
-        this.isRunning = false;
-    }
-
-    @Override
-    public boolean isRunning() {
-        return isRunning;
-    }
-
-    @Override
-    public void run() {
-        try {
-            while (isRunning) {
-                int addressedFloor = getAddressedFloor();
-                int nextFloor = moveToNextFloor();
-                TimeUnit.MILLISECONDS.sleep(speedBetweenFloorsMs);
-                if (nextFloor == addressedFloor) {
-                    TimeUnit.MILLISECONDS.sleep(avgWaitingTimePerStopMs);
-                }
-            }
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
     }
 }

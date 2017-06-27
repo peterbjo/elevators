@@ -10,6 +10,8 @@ public interface ElevatorListener {
     /**
      * Triggers when an elevator stops
      * @param event the StopEvent
+     * @return true if listener should be removed after event is handled
      */
-    void onStopEvent(StopEvent event);
+    boolean onStopEvent(StopEvent event);
+
 }

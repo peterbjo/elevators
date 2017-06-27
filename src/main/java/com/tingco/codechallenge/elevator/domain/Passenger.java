@@ -22,7 +22,6 @@ public class Passenger implements ElevatorListener {
     private List<Integer> stops = new ArrayList<>();
     private boolean inElevator = false;
     private boolean waiting = false;
-    private Elevator elevator;
 
     public Passenger(int id) {
         this.id = id;
@@ -52,7 +51,7 @@ public class Passenger implements ElevatorListener {
 
     /**
      * Returns true if a passenger is inside an elevator
-     * @return
+     * @return a boolean
      */
     public boolean isInElevator() {
         return inElevator;
@@ -60,7 +59,7 @@ public class Passenger implements ElevatorListener {
 
     /**
      * Returns true if a passenger waits for an elevator
-     * @return
+     * @return a boolean
      */
     public boolean isWaiting() {
         return waiting;
@@ -70,7 +69,7 @@ public class Passenger implements ElevatorListener {
      * Return next target floor
      * @return target floor
      */
-    public  Integer getNextFloor() {
+    public synchronized Integer getNextFloor() {
         if (stops.size() < 2) {
             return null;
         }
@@ -81,7 +80,7 @@ public class Passenger implements ElevatorListener {
      * Returns current floor passenger is on, if he's not in the elevator
      * @return curren floor
      */
-    public Integer getCurrentFloor() {
+    public synchronized Integer getCurrentFloor() {
         if (stops.isEmpty()) {
             return null;
         }
@@ -101,41 +100,46 @@ public class Passenger implements ElevatorListener {
      * Assigns an elevator to the passenger
      * @param elevator the elevator
      */
-    public void assignElevator(Elevator elevator) {
-        if(this.elevator != null){
-            elevator.removeElevatorListener(this);
-        }
-        this.elevator = elevator;
-        this.elevator.addElevatorListener(this);
+    public synchronized void assignElevator(Elevator elevator) {
+        elevator.addElevatorListener(this);
         waiting = true;
     }
 
     @Override
-    public void onStopEvent(StopEvent event) {
+    public synchronized boolean onStopEvent(StopEvent event) {
         Elevator elevator = event.getElevator();
+
         if (inElevator && event.getFloor().equals(getNextFloor())) {
-            elevator.leave();
             stops.remove(0);
             inElevator = false;
             waiting = false;
-            LOGGER.info(String.format("Passenger %d, leaves elevator %d on floor %d", id, elevator.getId(), event.getFloor()));
-            return;
-        } else if (!inElevator && event.getFloor().equals(getCurrentFloor())) {
+            elevator.leave();
+            LOGGER.info(String.format("Passenger=%d, leaves elevator=%d on floor=%d", id, elevator.getId(), event.getFloor()));
+            return true;
+        }
+
+        if (!inElevator && event.getFloor().equals(getCurrentFloor())) {
             inElevator = true;
             waiting = false;
             Integer nextFloor = getNextFloor();
             if (nextFloor == null) {
                 inElevator = false;
                 stops.remove(0);
-                return;
+                return true;
             }
             elevator.enter(nextFloor);
-            LOGGER.info(String.format("Passenger %d, enters elevator %d on floor %d", id, elevator.getId(), event.getFloor()));
+            LOGGER.info(String.format("Passenger=%d, enters elevator=%d on floor=%d", id, elevator.getId(), event.getFloor()));
+            return false;
         }
+
         if (inElevator) {
-            LOGGER.info(String.format("Passenger %d is in elevator %d, on floor %d", id, elevator.getId(), event.getFloor()));
-        }else{
-            LOGGER.info(String.format("Passenger %d is %s on floor %d", id, (waiting? "waiting" : "hanging around"), getCurrentFloor()));
+            LOGGER.info(String.format("Passenger=%d is in elevator=%d, on floor=%d", id, elevator.getId(), event.getFloor()));
+        }else if (getCurrentFloor() != null){
+            LOGGER.info(String.format("Passenger=%d is %s on floor=%d", id, (waiting? "waiting" : "hanging around"), getCurrentFloor()));
+        }else {
+            LOGGER.info(String.format("Passenger=%d has left the building", id));
         }
+
+        return false;
     }
 }

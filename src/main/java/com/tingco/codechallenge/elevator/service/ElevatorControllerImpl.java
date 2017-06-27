@@ -9,6 +9,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
+ * The controller that serves passengers with elevators
+ *
  * @author Peter Björklund <mailto:peter.bjorklund@joors.com>
  * @since 1.0.0
  */
@@ -38,7 +40,6 @@ public class ElevatorControllerImpl implements ElevatorController {
             if (time == calculatedTime) {
                 fastest = (elevator.getNrOfPassengers() < fastest.getNrOfPassengers()) ? elevator : fastest;
             }
-
         }
         if(!fastest.isRunning()) {
             startElevator(fastest);
@@ -58,7 +59,7 @@ public class ElevatorControllerImpl implements ElevatorController {
 
     }
 
-    private void startElevator(Elevator elevator) {
+    private synchronized void startElevator(Elevator elevator) {
         elevator.start();
         taskExecutor.execute(elevator);
     }
@@ -69,17 +70,14 @@ public class ElevatorControllerImpl implements ElevatorController {
             for (Elevator elevator : elevators){
                 elevator.stop();
             }
-            System.out.println("attempt to shutdown executor");
-            taskExecutor.shutdown();
-            taskExecutor.awaitTermination(60, TimeUnit.SECONDS);
+
+            taskExecutor.awaitTermination(10, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
-            System.err.println("tasks interrupted");
+            e.printStackTrace();
         } finally {
             if (!taskExecutor.isTerminated()) {
-                System.err.println("cancel non-finished tasks");
+                taskExecutor.shutdownNow();
             }
-            taskExecutor.shutdownNow();
-            System.out.println("shutdown finished");
         }
     }
 

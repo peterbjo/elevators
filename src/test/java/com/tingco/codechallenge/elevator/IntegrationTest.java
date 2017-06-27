@@ -28,6 +28,8 @@ import java.util.concurrent.TimeUnit;
 @SpringApplicationConfiguration(classes = ElevatorApplication.class)
 public class IntegrationTest {
 
+    private static int NR_OF_PASSENGERS = 20;
+
     @Autowired
     private ElevatorController elevatorController;
 
@@ -40,7 +42,7 @@ public class IntegrationTest {
 
         Random random = new Random();
         List<Passenger> passengers = Collections.synchronizedList(new ArrayList<>());
-        for(int i = 0 ; i < 5; i++){
+        for(int i = 0 ; i < NR_OF_PASSENGERS; i++){
             Passenger passenger = new Passenger(i);
             passenger.addStop(0);
             passenger.addStop(random.nextInt(numberOfFloors - 1) + 1);
