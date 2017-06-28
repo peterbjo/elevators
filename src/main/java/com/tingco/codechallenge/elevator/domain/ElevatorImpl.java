@@ -131,22 +131,25 @@ public class ElevatorImpl implements Elevator, Runnable {
     }
 
     @Override
-    public synchronized long calculateTimeToFloor(int toFloor) {
-        long time = 0;
-        switch (direction) {
+    public synchronized long calculateTimeToFloor(int toFloor, Direction direction) {
+        switch (this.direction) {
             case UP:
-                time = calculateTimeGoingUp(toFloor);
-                break;
+                if (direction.equals(Direction.DOWN)) {
+                    return calculateTimeGoingUp(currentFloor, lastStopUp()) + calculateTimeGoingDown(lastStopUp(), toFloor);
+                }
+                return calculateTimeGoingUp(currentFloor, toFloor);
             case DOWN:
-                time = calculateTimeGoingDown(toFloor);
-                break;
+                if (direction.equals(Direction.UP)) {
+                    return calculateTimeGoingDown(currentFloor, lastStopDown()) + calculateTimeGoingUp(lastStopDown(), toFloor);
+                }
+                return calculateTimeGoingDown(currentFloor, toFloor);
             case NONE:
-                long timeUp = calculateTimeGoingUp(toFloor);
-                long timeDown = calculateTimeGoingDown(toFloor);
-                time = (timeUp < timeDown) ? timeUp : timeDown;
-                break;
+                if (toFloor >= currentFloor) {
+                    return calculateTimeGoingUp(currentFloor, toFloor);
+                }
+                return calculateTimeGoingDown(currentFloor, toFloor);
         }
-        return time;
+        return Long.MAX_VALUE;
     }
 
     @Override
@@ -163,24 +166,24 @@ public class ElevatorImpl implements Elevator, Runnable {
         }
 
         if (isOnSameFloor(addressedFloor)) {
-            if (direction == Direction.UP && nextStopUp() > -1){
+            if (direction == Direction.UP && nextStopUp() > -1) {
                 this.direction = Direction.UP;
-            }else if(direction == Direction.DOWN && nextStopDown() > -1){
+            } else if (direction == Direction.DOWN && nextStopDown() > -1) {
                 this.direction = Direction.DOWN;
-            }else {
+            } else {
                 this.direction = Direction.NONE;
             }
 
             List<ElevatorListener> toRemove = new ArrayList<>();
             for (ElevatorListener listener : listeners) {
-                if(listener.onStopEvent(new StopEvent(currentFloor, this))){
+                if (listener.onStopEvent(new StopEvent(currentFloor, this))) {
                     toRemove.add(listener);
                 }
             }
             listeners.removeAll(toRemove);
         }
 
-        LOGGER.info(String.format("Elevator=%s, is on floor=%d with direction=%s", id, currentFloor, direction));
+        LOGGER.info(String.format("Elevator=%s, is on floor=%d with direction=%s and nr of passengers=%d", id, currentFloor, direction, nrOfPassengers));
         return currentFloor;
     }
 
@@ -276,6 +279,16 @@ public class ElevatorImpl implements Elevator, Runnable {
         return -1;
     }
 
+    private int lastStopUp() {
+        int lastStop = 0;
+        for (int i = currentFloor; i < nrOfFloors; i++) {
+            if (elevatorStops[i] > 0) {
+                lastStop = i;
+            }
+        }
+        return lastStop;
+    }
+
     private int nextStopDown() {
         for (int i = currentFloor; i >= 0; i--) {
             if (elevatorStops[i] > 0) {
@@ -285,9 +298,19 @@ public class ElevatorImpl implements Elevator, Runnable {
         return -1;
     }
 
-    private long calculateTimeGoingUp(int toFloor) {
+    private int lastStopDown() {
+        int lastStop = 0;
+        for (int i = currentFloor; i >= 0; i--) {
+            if (elevatorStops[i] > 0) {
+                lastStop = i;
+            }
+        }
+        return lastStop;
+    }
+
+    private long calculateTimeGoingUp(int fromFloor, int toFloor) {
         int[] stops = Arrays.copyOf(elevatorStops, elevatorStops.length);
-        int lastStopUp = lastStopUpStartingFrom(currentFloor, stops);
+        int lastStopUp = lastStopUpStartingFrom(fromFloor, stops);
 
         lastStopUp = (toFloor > lastStopUp) ? toFloor : lastStopUp;
 
@@ -297,22 +320,35 @@ public class ElevatorImpl implements Elevator, Runnable {
             totalTime = avgWaitingTimePerStopMs;
         }
 
-        for (int i = currentFloor ; i <= lastStopUp; i++) {
-            if (stops[i] > 0) {
-                totalTime += avgWaitingTimePerStopMs;
-                stops[i] = stops[i] - 1;
-            }
-            totalTime += speedBetweenFloorsMs;
-        }
+        totalTime += totalTimeUp(fromFloor, lastStopUp, stops);
 
-        if (toFloor > currentFloor) {
+        if (toFloor > fromFloor) {
             return totalTime;
         }
 
         int lastStopDown = lastStopDownStartingFrom(lastStopUp, stops);
         lastStopDown = (toFloor < lastStopDown) ? toFloor : lastStopDown;
 
-        for (int i = lastStopUp; i >= lastStopDown; i--) {
+        totalTime += totalTimeDown(lastStopUp, lastStopDown, stops);
+
+        return totalTime;
+    }
+
+    private long totalTimeUp(int from, int to, int[] stops) {
+        long totalTime = 0;
+        for (int i = from; i <= to; i++) {
+            if (stops[i] > 0) {
+                totalTime += avgWaitingTimePerStopMs;
+                stops[i] = stops[i] - 1;
+            }
+            totalTime += speedBetweenFloorsMs;
+        }
+        return totalTime;
+    }
+
+    private long totalTimeDown(int from, int to, int[] stops) {
+        long totalTime = 0;
+        for (int i = from; i >= to; i--) {
             if (stops[i] > 0) {
                 totalTime += avgWaitingTimePerStopMs;
                 stops[i] = stops[i] - 1;
@@ -323,9 +359,9 @@ public class ElevatorImpl implements Elevator, Runnable {
         return totalTime;
     }
 
-    private long calculateTimeGoingDown(int toFloor) {
+    private long calculateTimeGoingDown(int fromFloor, int toFloor) {
         int[] stops = Arrays.copyOf(elevatorStops, elevatorStops.length);
-        int lastStopDown = lastStopDownStartingFrom(currentFloor, stops);
+        int lastStopDown = lastStopDownStartingFrom(fromFloor, stops);
 
         lastStopDown = (toFloor < lastStopDown) ? toFloor : lastStopDown;
 
@@ -335,28 +371,16 @@ public class ElevatorImpl implements Elevator, Runnable {
             totalTime = avgWaitingTimePerStopMs;
         }
 
-        for (int i = currentFloor; i >= lastStopDown; i--) {
-            if (stops[i] > 0) {
-                totalTime += avgWaitingTimePerStopMs;
-                stops[i] = stops[i] - 1;
-            }
-            totalTime += speedBetweenFloorsMs;
-        }
+        totalTime += totalTimeDown(fromFloor, lastStopDown, stops);
 
-        if (toFloor < currentFloor) {
+        if (toFloor < fromFloor) {
             return totalTime;
         }
 
         int lastStopUp = lastStopUpStartingFrom(lastStopDown, stops);
         lastStopUp = (toFloor > lastStopUp) ? toFloor : lastStopUp;
 
-        for (int i = lastStopDown; i <= lastStopUp; i++) {
-            if (stops[i] > 0) {
-                totalTime += avgWaitingTimePerStopMs;
-                stops[i] = stops[i] - 1;
-            }
-            totalTime += speedBetweenFloorsMs;
-        }
+        totalTime += totalTimeUp(lastStopDown, lastStopUp, stops);
 
         return totalTime;
     }

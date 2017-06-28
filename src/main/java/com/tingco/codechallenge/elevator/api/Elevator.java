@@ -51,9 +51,10 @@ public interface Elevator extends Runnable{
     /**
      * Calculates the time for a elevator to reach a certain floor
      * @param toFloor the target floot
+     * @param direction
      * @return time in milliseconds
      */
-    long calculateTimeToFloor(int toFloor);
+    long calculateTimeToFloor(int toFloor, Direction direction);
 
     /**
      * Moves the elevator to next floor

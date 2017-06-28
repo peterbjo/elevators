@@ -18,7 +18,7 @@ public interface ElevatorController {
      *            addressed floor as integer.
      * @return The Elevator that is going to the floor, if there is one to move.
      */
-    Elevator requestElevator(int toFloor);
+    Elevator requestElevator(int toFloor, Elevator.Direction direction);
 
     /**
      * A snapshot list of all elevators in the system.

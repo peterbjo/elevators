@@ -60,7 +60,8 @@ public class IntegrationTest {
                 passengers.remove(passenger);
                 continue;
             }
-            Elevator elevator = elevatorController.requestElevator(passenger.getCurrentFloor());
+            Elevator.Direction direction = (passenger.getNextFloor() > passenger.getCurrentFloor()) ? Elevator.Direction.UP : Elevator.Direction.DOWN;
+            Elevator elevator = elevatorController.requestElevator(passenger.getCurrentFloor(), direction);
 
             passenger.assignElevator(elevator);
             TimeUnit.MILLISECONDS.sleep(1000);

@@ -26,14 +26,14 @@ public class ElevatorControllerImpl implements ElevatorController {
     }
 
     @Override
-    public synchronized Elevator requestElevator(int toFloor) {
+    public synchronized Elevator requestElevator(int toFloor, Elevator.Direction direction) {
 
         Elevator fastest = elevators.get(0);
-        long calculatedTime = fastest.calculateTimeToFloor(toFloor);
+        long calculatedTime = fastest.calculateTimeToFloor(toFloor, direction);
         for (int i = 1; i < elevators.size(); i++) {
             Elevator elevator = elevators.get(i);
             long time;
-            if ((time = elevator.calculateTimeToFloor(toFloor)) < calculatedTime) {
+            if ((time = elevator.calculateTimeToFloor(toFloor, direction)) < calculatedTime) {
                 calculatedTime = time;
                 fastest = elevator;
             }
