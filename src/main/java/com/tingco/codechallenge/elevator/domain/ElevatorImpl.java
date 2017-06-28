@@ -281,7 +281,7 @@ public class ElevatorImpl implements Elevator, Runnable {
 
     private int lastStopUp() {
         int lastStop = 0;
-        for (int i = currentFloor; i < nrOfFloors; i++) {
+        for (int i = lastStop; i < nrOfFloors; i++) {
             if (elevatorStops[i] > 0) {
                 lastStop = i;
             }
@@ -299,8 +299,8 @@ public class ElevatorImpl implements Elevator, Runnable {
     }
 
     private int lastStopDown() {
-        int lastStop = 0;
-        for (int i = currentFloor; i >= 0; i--) {
+        int lastStop = nrOfFloors - 1;
+        for (int i = lastStop; i >= 0; i--) {
             if (elevatorStops[i] > 0) {
                 lastStop = i;
             }
